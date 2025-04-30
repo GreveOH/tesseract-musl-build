@@ -1,4 +1,4 @@
-name: Build Tesseract and Leptonica for musl (Alpine)
+name: Build Tesseract with musl
 
 on:
   workflow_dispatch:
@@ -6,44 +6,71 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     container:
       image: alpine:edge
 
     steps:
-    - name: Install dependencies
-      run: |
-        apk add --no-cache \
-          build-base cmake git autoconf automake libtool \
-          tiff-dev zlib-dev libpng-dev libjpeg-turbo-dev \
-          icu-dev pango-dev cairo-dev \
-          curl
+      - name: Install build dependencies
+        run: |
+          apk update
+          apk add --no-cache \
+            bash \
+            build-base \
+            autoconf \
+            automake \
+            libtool \
+            git \
+            pkgconfig \
+            xz \
+            zlib-dev \
+            libjpeg-turbo-dev \
+            libpng-dev \
+            tiff-dev \
+            zlib-dev \
+            clang \
+            clang-dev \
+            cmake \
+            ca-certificates \
+            curl \
+            nasm \
+            gcc \
+            g++ \
+            icu-dev \
+            libwebp-dev \
+            libxml2-dev \
+            python3 \
+            py3-pip \
+            gettext-dev \
+            lcms2-dev
 
-    - name: Clone Leptonica
-      run: |
-        git clone --depth 1 https://github.com/DanBloomberg/leptonica.git
-        cd leptonica
-        ./autogen.sh
-        ./configure --prefix=/build --enable-shared
-        make -j$(nproc)
-        make install
+      - name: Build and install Leptonica
+        run: |
+          git clone --branch 1.83.0 https://github.com/DanBloomberg/leptonica.git
+          cd leptonica
+          ./autobuild
+          ./configure --prefix=/usr --disable-programs
+          make -j$(nproc)
+          make install
 
-    - name: Clone Tesseract
-      run: |
-        git clone --depth 1 https://github.com/tesseract-ocr/tesseract.git
-        cd tesseract
-        ./autogen.sh
-        ./configure --prefix=/build --enable-shared --with-extra-libraries=/build/lib --with-extra-includes=/build/include
-        make -j$(nproc)
-        make install
+      - name: Build and install Tesseract
+        run: |
+          git clone --branch 5.3.4 https://github.com/tesseract-ocr/tesseract.git
+          cd tesseract
+          ./autogen.sh
+          ./configure --prefix=/usr --enable-static=yes --enable-shared=no
+          make -j$(nproc)
+          make install
 
-    - name: Package .so files
-      run: |
-        mkdir -p output/lib
-        cp -a /build/lib/*.so* output/lib/
-        tar -czvf musl-tesseract-libs.tar.gz -C output lib
+      - name: Archive compiled binaries
+        run: |
+          mkdir -p /artifacts/bin /artifacts/lib
+          cp /usr/bin/tesseract /artifacts/bin/
+          cp /usr/lib/*.a /artifacts/lib/
+          cp -r /usr/include /artifacts/include
 
-    - name: Upload .so files as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: musl-tesseract-libs
-        path: musl-tesseract-libs.tar.gz
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tesseract-musl-build
+          path: /artifacts
