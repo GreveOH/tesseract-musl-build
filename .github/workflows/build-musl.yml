@@ -14,7 +14,7 @@ jobs:
       run: |
         apk add --no-cache \
           build-base cmake git autoconf automake libtool \
-          tiff-dev zlib-dev png-dev jpeg-dev \
+          tiff-dev zlib-dev libpng-dev libjpeg-turbo-dev \
           icu-dev pango-dev cairo-dev \
           curl
 
