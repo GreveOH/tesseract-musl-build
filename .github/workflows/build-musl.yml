@@ -1,4 +1,4 @@
-name: Build Tesseract with musl
+name: Build Tesseract for musl (Alpine)
 
 on:
   workflow_dispatch:
@@ -6,71 +6,59 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     container:
-      image: alpine:edge
+      image: alpine:latest
 
     steps:
       - name: Install build dependencies
         run: |
           apk update
           apk add --no-cache \
-            bash \
             build-base \
+            clang \
+            cmake \
             autoconf \
             automake \
             libtool \
             git \
             pkgconfig \
-            xz \
             zlib-dev \
-            libjpeg-turbo-dev \
+            jpeg-dev \
             libpng-dev \
             tiff-dev \
-            zlib-dev \
-            clang \
-            clang-dev \
-            cmake \
-            ca-certificates \
+            wget \
             curl \
-            nasm \
-            gcc \
-            g++ \
-            icu-dev \
-            libwebp-dev \
-            libxml2-dev \
-            python3 \
-            py3-pip \
-            gettext-dev \
-            lcms2-dev
+            xz \
+            bash
 
-      - name: Build and install Leptonica
+      - name: Clone Leptonica
         run: |
           git clone --branch 1.83.0 https://github.com/DanBloomberg/leptonica.git
           cd leptonica
-          ./autobuild
-          ./configure --prefix=/usr --disable-programs
-          make -j$(nproc)
-          make install
-
-      - name: Build and install Tesseract
-        run: |
-          git clone --branch 5.3.4 https://github.com/tesseract-ocr/tesseract.git
-          cd tesseract
           ./autogen.sh
-          ./configure --prefix=/usr --enable-static=yes --enable-shared=no
+          ./configure --prefix=/usr
           make -j$(nproc)
           make install
 
-      - name: Archive compiled binaries
+      - name: Clone Tesseract
         run: |
-          mkdir -p /artifacts/bin /artifacts/lib
-          cp /usr/bin/tesseract /artifacts/bin/
-          cp /usr/lib/*.a /artifacts/lib/
-          cp -r /usr/include /artifacts/include
+          git clone https://github.com/tesseract-ocr/tesseract.git
+          cd tesseract
+          git checkout 5.3.1
+          ./autogen.sh
+          ./configure --prefix=/usr --with-extra-libraries=/usr/lib --with-extra-includes=/usr/include
+          make -j$(nproc)
+          make install
 
-      - name: Upload artifacts
+      - name: Package binaries
+        run: |
+          mkdir -p /output/bin
+          cp /usr/bin/tesseract /output/bin/
+          cp -r /usr/lib /output/lib
+          cp -r /usr/share/tessdata /output/tessdata || echo "No tessdata found"
+
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: tesseract-musl-build
-          path: /artifacts
+          name: tesseract-musl-binaries
+          path: /output
