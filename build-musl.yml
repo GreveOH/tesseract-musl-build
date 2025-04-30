@@ -1,0 +1,49 @@
+name: Build Tesseract and Leptonica for musl (Alpine)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:edge
+
+    steps:
+    - name: Install dependencies
+      run: |
+        apk add --no-cache \
+          build-base cmake git autoconf automake libtool \
+          tiff-dev zlib-dev png-dev jpeg-dev \
+          icu-dev pango-dev cairo-dev \
+          curl
+
+    - name: Clone Leptonica
+      run: |
+        git clone --depth 1 https://github.com/DanBloomberg/leptonica.git
+        cd leptonica
+        ./autogen.sh
+        ./configure --prefix=/build --enable-shared
+        make -j$(nproc)
+        make install
+
+    - name: Clone Tesseract
+      run: |
+        git clone --depth 1 https://github.com/tesseract-ocr/tesseract.git
+        cd tesseract
+        ./autogen.sh
+        ./configure --prefix=/build --enable-shared --with-extra-libraries=/build/lib --with-extra-includes=/build/include
+        make -j$(nproc)
+        make install
+
+    - name: Package .so files
+      run: |
+        mkdir -p output/lib
+        cp -a /build/lib/*.so* output/lib/
+        tar -czvf musl-tesseract-libs.tar.gz -C output lib
+
+    - name: Upload .so files as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: musl-tesseract-libs
+        path: musl-tesseract-libs.tar.gz
